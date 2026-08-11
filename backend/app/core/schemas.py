@@ -26,7 +26,6 @@ class GenerateRequest(BaseModel):
 
 class ResumeRequest(BaseModel):
     thread_id: str
-    action: str  # "approve", "override_feedback", or "direct_edit"
+    action: Literal["approve", "request_changes", "direct_edit"]
     custom_feedback: Optional[str] = None
     direct_draft_edit: Optional[str] = None
-    

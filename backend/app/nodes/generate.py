@@ -19,5 +19,5 @@ def generate_node(state: LinkedInState) -> dict:
     )
     return {
         'post_draft': response.post_draft,
-        'iteration_count': 0
+        'iteration_count': 1
     }

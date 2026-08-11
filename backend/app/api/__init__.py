@@ -94,19 +94,19 @@ async def resume_generation(request: Request, response: Response, req: ResumeReq
         )
 
     if req.action == "approve":
-        await agent.aupdate_state(config, {"evaluation": "approved"})
+        await agent.aupdate_state(config, {"human_approved": True})
         result = await agent.ainvoke(None, config=config)
-    elif req.action == "override_feedback":
+    elif req.action == "request_changes":
         # Ingest custom user critique and trigger optimize node
         await agent.aupdate_state(
-            config, {"human_feedback_override": req.custom_feedback}
+            config, {"human_approved": False, "human_feedback_override": req.custom_feedback}
         )
         result = await agent.ainvoke(None, config=config)
     elif req.action == "direct_edit":
         # User manually edited the post draft
         await agent.aupdate_state(
             config,
-            {"post_draft": req.direct_draft_edit, "evaluation": "approved"},
+            {"post_draft": req.direct_draft_edit, "human_approved": True},
         )
         result = await agent.ainvoke(None, config=config)
 

@@ -26,5 +26,6 @@ def optimize_node(state: LinkedInState) -> dict:
 
     return {
         "post_draft": content,
-        "human_feedback_override": None
+        "human_feedback_override": None,
+        "iteration_count": state.get("iteration_count", 1) + 1
     }

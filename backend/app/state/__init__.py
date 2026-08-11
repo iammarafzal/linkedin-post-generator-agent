@@ -12,4 +12,4 @@ class LinkedInState(TypedDict, total=False):
 
     iteration_count: int
     max_iteration: int
-    
+    human_approved: bool
