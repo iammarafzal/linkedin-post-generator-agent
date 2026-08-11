@@ -1,18 +1,20 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
+import json
+import os
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request, Response
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg_pool import AsyncConnectionPool
-import os
-from dotenv import load_dotenv
-import json
 from sse_starlette.sse import EventSourceResponse
+
+from ..core.schemas import GenerateRequest, ResumeRequest
+from ..graph import create_graph
+from ..middleware import limiter, setup_middleware
 
 
 load_dotenv()
 
-from ..core.schemas import GenerateRequest, ResumeRequest
-from ..graph import create_graph
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
@@ -53,21 +55,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LinkedIn Post Generator Agent API", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+setup_middleware(app)
 
 @app.get("/health")
-async def health_check():
+@limiter.limit("60/minute")
+async def health_check(request: Request, response: Response):
     return {"status": "ok", "message": "Backend is awake and running!"}
 
 @app.post("/api/generate")
-async def start_generation(req: GenerateRequest):
+@limiter.limit("5/minute")
+async def start_generation(request: Request, response: Response, req: GenerateRequest):
     config = {"configurable": {"thread_id": req.thread_id}}
     initial_state = {
         "topic": req.topic,
@@ -86,7 +83,8 @@ async def start_generation(req: GenerateRequest):
     }
 
 @app.post("/api/resume")
-async def resume_generation(req: ResumeRequest):
+@limiter.limit("10/minute")
+async def resume_generation(request: Request, response: Response, req: ResumeRequest):
     config = {"configurable": {"thread_id": req.thread_id}}
     current_state = await agent.aget_state(config)
 
@@ -122,14 +120,15 @@ async def resume_generation(req: ResumeRequest):
 
 
 @app.get("/api/stream/{thread_id}")
-async def stream_generation(thread_id: str, req: Request):
+@limiter.limit("15/minute")
+async def stream_generation(request: Request, response: Response, thread_id: str):
     config = {"configurable": {"thread_id": thread_id}}
 
     async def event_generator():
         state = await agent.aget_state(config)
 
         async for event in agent.astream_events(None, config, version="v2"):
-            if await req.is_disconnected():
+            if await request.is_disconnected():
                 break
 
             kind = event.get("event")
